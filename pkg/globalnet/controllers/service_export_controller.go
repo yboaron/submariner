@@ -37,7 +37,8 @@ import (
 	mcsv1a1 "sigs.k8s.io/mcs-api/pkg/apis/v1alpha1"
 )
 
-func NewServiceExportController(config *syncer.ResourceSyncerConfig, podControllers *IngressPodControllers) (Interface, error) {
+func NewServiceExportController(config *syncer.ResourceSyncerConfig, podControllers *IngressPodControllers,
+	endpointsControllers *IngressEndpointsControllers) (Interface, error) {
 	// We'll panic if config is nil, this is intentional
 	var err error
 
@@ -52,6 +53,7 @@ func NewServiceExportController(config *syncer.ResourceSyncerConfig, podControll
 		baseSyncerController: newBaseSyncerController(),
 		services:             config.SourceClient.Resource(*gvr),
 		podControllers:       podControllers,
+		endpointsControllers: endpointsControllers,
 		scheme:               config.Scheme,
 	}
 
@@ -90,6 +92,7 @@ func NewServiceExportController(config *syncer.ResourceSyncerConfig, podControll
 func (c *serviceExportController) Stop() {
 	c.baseController.Stop()
 	c.podControllers.stopAll()
+	c.endpointsControllers.stopAll()
 }
 
 func (c *serviceExportController) Start() error {
@@ -147,6 +150,10 @@ func (c *serviceExportController) onCreate(serviceExport *mcsv1a1.ServiceExport)
 	klog.Infof("Processing ServiceExport %q", key)
 
 	if service.Spec.ClusterIP == corev1.ClusterIPNone {
+		if len(service.Spec.Selector) == 0 {
+			// Headless service without selector
+			return c.onCreateHeadlessWithoutSelector(key, service)
+		}
 		// Headless service
 		return c.onCreateHeadless(key, service)
 	}
@@ -187,6 +194,7 @@ func (c *serviceExportController) onDelete(serviceExport *mcsv1a1.ServiceExport)
 	klog.Infof("ServiceExport %q deleted", key)
 
 	c.podControllers.stopAndCleanup(serviceExport.Name, serviceExport.Namespace)
+	c.endpointsControllers.stopAndCleanup(serviceExport.Name, serviceExport.Namespace)
 
 	return &submarinerv1.GlobalIngressIP{
 		ObjectMeta: metav1.ObjectMeta{
@@ -223,6 +231,16 @@ func (c *serviceExportController) onCreateHeadless(key string, service *corev1.S
 	err := c.podControllers.start(service)
 	if err != nil {
 		klog.Errorf("Failed to create pod controller for service %q", key)
+		return nil, true
+	}
+
+	return nil, false
+}
+
+func (c *serviceExportController) onCreateHeadlessWithoutSelector(key string, service *corev1.Service) (runtime.Object, bool) {
+	err := c.endpointsControllers.start(service)
+	if err != nil {
+		klog.Errorf("Failed to create endpoints controller for service %q", key)
 		return nil, true
 	}
 

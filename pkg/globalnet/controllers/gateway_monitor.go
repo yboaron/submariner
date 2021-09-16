@@ -19,6 +19,7 @@ limitations under the License.
 package controllers
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -287,7 +288,12 @@ func (g *gatewayMonitor) startControllers() error {
 		return errors.Wrap(err, "error creating the IngressPodControllers")
 	}
 
-	c, err = NewServiceExportController(g.syncerConfig, podControllers)
+	endpointsControllers, err := NewIngressEndpointsControllers(g.syncerConfig)
+	if err != nil {
+		return errors.WithMessage(err, "error creating the IngressEndpointsControllers")
+	}
+
+	c, err = NewServiceExportController(g.syncerConfig, podControllers, endpointsControllers)
 	if err != nil {
 		return errors.Wrap(err, "error creating the ServiceExport controller")
 	}
@@ -385,6 +391,12 @@ func (g *gatewayMonitor) createGlobalnetChains() error {
 		return errors.Wrapf(err, "error creating iptables chain %s", constants.SmGlobalnetEgressChainForHeadlessSvcPods)
 	}
 
+	klog.V(log.DEBUG).Infof("Install/ensure %s chain exists", constants.SmGlobalnetEgressChainForHeadlessSvcEPs)
+
+	if err := iptables.CreateChainIfNotExists(g.ipt, "nat", constants.SmGlobalnetEgressChainForHeadlessSvcEPs); err != nil {
+		return fmt.Errorf("error creating iptables chain %s: %v", constants.SmGlobalnetEgressChainForHeadlessSvcEPs, err)
+	}
+
 	klog.V(log.DEBUG).Infof("Install/ensure %s chain exists", constants.SmGlobalnetEgressChainForNamespace)
 
 	if err := iptables.CreateChainIfNotExists(g.ipt, "nat", constants.SmGlobalnetEgressChainForNamespace); err != nil {
@@ -407,13 +419,18 @@ func (g *gatewayMonitor) createGlobalnetChains() error {
 		klog.Errorf("error inserting iptables rule %q: %v\n", strings.Join(forwardToSubGlobalNetChain, " "), err)
 	}
 
-	forwardToSubGlobalNetChain = []string{"-j", constants.SmGlobalnetEgressChainForNamespace}
+	forwardToSubGlobalNetChain = []string{"-j", constants.SmGlobalnetEgressChainForHeadlessSvcEPs}
 	if err := iptables.InsertUnique(g.ipt, "nat", constants.SmGlobalnetEgressChain, 4, forwardToSubGlobalNetChain); err != nil {
 		klog.Errorf("error inserting iptables rule %q: %v\n", strings.Join(forwardToSubGlobalNetChain, " "), err)
 	}
 
-	forwardToSubGlobalNetChain = []string{"-j", constants.SmGlobalnetEgressChainForCluster}
+	forwardToSubGlobalNetChain = []string{"-j", constants.SmGlobalnetEgressChainForNamespace}
 	if err := iptables.InsertUnique(g.ipt, "nat", constants.SmGlobalnetEgressChain, 5, forwardToSubGlobalNetChain); err != nil {
+		klog.Errorf("error inserting iptables rule %q: %v\n", strings.Join(forwardToSubGlobalNetChain, " "), err)
+	}
+
+	forwardToSubGlobalNetChain = []string{"-j", constants.SmGlobalnetEgressChainForCluster}
+	if err := iptables.InsertUnique(g.ipt, "nat", constants.SmGlobalnetEgressChain, 6, forwardToSubGlobalNetChain); err != nil {
 		klog.Errorf("error inserting iptables rule %q: %v\n", strings.Join(forwardToSubGlobalNetChain, " "), err)
 	}
 
