@@ -171,13 +171,14 @@ func testExternalConnectivity(p testParams) {
 	dockerIP := docker.GetIP(extNetName)
 
 	var targetIP string
+
 	switch p.ToEndpointType {
 	case tcp.PodIP:
 		targetIP = podIP
 	case tcp.ServiceIP:
 		targetIP = svcIP
 	default:
-		framework.Failf("Unsupported ToEndpointType %s was passed", p.ToEndpointType)
+		framework.Failf("Unsupported ToEndpointType %v was passed", p.ToEndpointType)
 	}
 
 	By(fmt.Sprintf("Sending an http request from external app %q to %q in the cluster %q",
