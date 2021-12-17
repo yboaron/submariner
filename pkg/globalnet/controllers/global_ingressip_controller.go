@@ -72,6 +72,7 @@ func NewGlobalIngressIPController(config *syncer.ResourceSyncerConfig, pool *ipa
 
 		var target string
 		var tType iptables.TargetType
+
 		if gip.Spec.Target == submarinerv1.ClusterIPService {
 			target = gip.GetAnnotations()[kubeProxyIPTableChainAnnotation]
 		} else if gip.Spec.Target == submarinerv1.HeadlessServicePod {
@@ -171,6 +172,7 @@ func (c *globalIngressIPController) onCreate(ingressIP *submarinerv1.GlobalIngre
 
 	var target string
 	var tType iptables.TargetType
+
 	if ingressIP.Spec.Target == submarinerv1.HeadlessServicePod {
 		target = ingressIP.GetAnnotations()[headlessSvcPodIP]
 		if target == "" {

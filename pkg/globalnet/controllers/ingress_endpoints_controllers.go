@@ -16,16 +16,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+//nolint:dupl // same logic to ingress_pod_controllers, but for a different class
 package controllers
 
 import (
 	"context"
 
+	"github.com/pkg/errors"
 	"github.com/submariner-io/admiral/pkg/syncer"
 	"github.com/submariner-io/admiral/pkg/util"
 	submarinerv1 "github.com/submariner-io/submariner/pkg/apis/submariner.io/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/klog"
@@ -34,7 +36,7 @@ import (
 func NewIngressEndpointsControllers(config *syncer.ResourceSyncerConfig) (*IngressEndpointsControllers, error) {
 	_, gvr, err := util.ToUnstructuredResource(&submarinerv1.GlobalIngressIP{}, config.RestMapper)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "error converting resource")
 	}
 
 	return &IngressEndpointsControllers{
@@ -45,8 +47,8 @@ func NewIngressEndpointsControllers(config *syncer.ResourceSyncerConfig) (*Ingre
 }
 
 func (c *IngressEndpointsControllers) start(service *corev1.Service) error {
-	c.Lock()
-	defer c.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	key := c.key(service.Name, service.Namespace)
 	if _, exists := c.controllers[key]; exists {
@@ -64,8 +66,8 @@ func (c *IngressEndpointsControllers) start(service *corev1.Service) error {
 }
 
 func (c *IngressEndpointsControllers) stopAll() {
-	c.Lock()
-	defer c.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	for _, controller := range c.controllers {
 		controller.Stop()
@@ -75,11 +77,12 @@ func (c *IngressEndpointsControllers) stopAll() {
 }
 
 func (c *IngressEndpointsControllers) stopAndCleanup(serviceName, serviceNamespace string) {
-	c.Lock()
-	defer c.Unlock()
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
 
 	key := c.key(serviceName, serviceNamespace)
 	controller, exists := c.controllers[key]
+
 	if exists {
 		controller.Stop()
 		delete(c.controllers, key)
@@ -89,7 +92,7 @@ func (c *IngressEndpointsControllers) stopAndCleanup(serviceName, serviceNamespa
 	err := c.ingressIPs.Namespace(serviceNamespace).DeleteCollection(context.TODO(), metav1.DeleteOptions{},
 		metav1.ListOptions{LabelSelector: svcSelector})
 
-	if err != nil && !errors.IsNotFound(err) {
+	if err != nil && !apierrors.IsNotFound(err) {
 		klog.Errorf("Error deleting GlobalIngressIPs for service %q: %v", key, err)
 	}
 }

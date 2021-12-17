@@ -19,7 +19,6 @@ limitations under the License.
 package controllers
 
 import (
-	"fmt"
 	"os"
 	"strings"
 
@@ -394,7 +393,7 @@ func (g *gatewayMonitor) createGlobalnetChains() error {
 	klog.V(log.DEBUG).Infof("Install/ensure %s chain exists", constants.SmGlobalnetEgressChainForHeadlessSvcEPs)
 
 	if err := iptables.CreateChainIfNotExists(g.ipt, "nat", constants.SmGlobalnetEgressChainForHeadlessSvcEPs); err != nil {
-		return fmt.Errorf("error creating iptables chain %s: %v", constants.SmGlobalnetEgressChainForHeadlessSvcEPs, err)
+		return errors.Wrapf(err, "error creating iptables chain %s", constants.SmGlobalnetEgressChainForHeadlessSvcEPs)
 	}
 
 	klog.V(log.DEBUG).Infof("Install/ensure %s chain exists", constants.SmGlobalnetEgressChainForNamespace)

@@ -371,22 +371,12 @@ func (t *testDriverBase) awaitGlobalIngressIP(name string) *submarinerv1.GlobalI
 }
 
 func (t *testDriverBase) awaitHeadlessGlobalIngressIP(svcName, podName string) *submarinerv1.GlobalIngressIP {
-	var ingressIP *submarinerv1.GlobalIngressIP
-
-	Eventually(func() bool {
-		list, _ := t.globalIngressIPs.List(context.TODO(), metav1.ListOptions{})
-		for i := range list.Items {
-			gip := &submarinerv1.GlobalIngressIP{}
-			Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(list.Items[i].Object, gip)).To(Succeed())
-
-			if gip.Spec.PodRef != nil && gip.Spec.PodRef.Name == podName {
-				ingressIP = gip
-				return true
-			}
+	ingressIP := getGlobalIngressIP(t, podName, func(gip *submarinerv1.GlobalIngressIP, name string) bool {
+		if gip.Spec.PodRef != nil && gip.Spec.PodRef.Name == name {
+			return true
 		}
-
 		return false
-	}, 5).Should(BeTrue(), "GlobalIngressIP not found")
+	})
 
 	Expect(ingressIP.Spec.Target).To(Equal(submarinerv1.HeadlessServicePod))
 	Expect(ingressIP.Spec.ServiceRef).ToNot(BeNil())
@@ -396,23 +386,13 @@ func (t *testDriverBase) awaitHeadlessGlobalIngressIP(svcName, podName string) *
 }
 
 func (t *testDriverBase) awaitHeadlessGlobalIngressIPForEP(svcName, endpointsName string) *submarinerv1.GlobalIngressIP {
-	var ingressIP *submarinerv1.GlobalIngressIP
-
-	Eventually(func() bool {
-		list, _ := t.globalIngressIPs.List(context.TODO(), metav1.ListOptions{})
-		for i := range list.Items {
-			gip := &submarinerv1.GlobalIngressIP{}
-			Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(list.Items[i].Object, gip)).To(Succeed())
-
-			// Intentionally comparing ServiceRef.Name and endpointsName (they should be the same)
-			if gip.Spec.ServiceRef != nil && gip.Spec.ServiceRef.Name == endpointsName {
-				ingressIP = gip
-				return true
-			}
+	// Intentionally comparing ServiceRef.Name and endpointsName (they should be the same)
+	ingressIP := getGlobalIngressIP(t, endpointsName, func(gip *submarinerv1.GlobalIngressIP, name string) bool {
+		if gip.Spec.ServiceRef != nil && gip.Spec.ServiceRef.Name == name {
+			return true
 		}
-
 		return false
-	}, 5).Should(BeTrue(), "GlobalIngressIP not found")
+	})
 
 	Expect(ingressIP.Spec.Target).To(Equal(submarinerv1.HeadlessServiceEndpoints))
 	Expect(ingressIP.Spec.ServiceRef).ToNot(BeNil())
@@ -421,7 +401,28 @@ func (t *testDriverBase) awaitHeadlessGlobalIngressIPForEP(svcName, endpointsNam
 	return ingressIP
 }
 
-// nolint unparam - `name` always receives `serviceName` (`"nginx"`)
+func getGlobalIngressIP(t *testDriverBase, name string,
+	compFunc func(*submarinerv1.GlobalIngressIP, string) bool) *submarinerv1.GlobalIngressIP {
+	var ingressIP *submarinerv1.GlobalIngressIP
+
+	Eventually(func() bool {
+		list, _ := t.globalIngressIPs.List(context.TODO(), metav1.ListOptions{})
+		for i := range list.Items {
+			gip := &submarinerv1.GlobalIngressIP{}
+			Expect(runtime.DefaultUnstructuredConverter.FromUnstructured(list.Items[i].Object, gip)).To(Succeed())
+
+			if compFunc(gip, name) {
+				ingressIP = gip
+				return true
+			}
+		}
+
+		return false
+	}, 5).Should(BeTrue(), "GlobalIngressIP not found")
+
+	return ingressIP
+}
+
 func (t *testDriverBase) awaitNoGlobalIngressIP(name string) {
 	time.Sleep(300 * time.Millisecond)
 	test.AwaitNoResource(t.globalIngressIPs, name)

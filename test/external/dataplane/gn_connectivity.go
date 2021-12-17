@@ -139,7 +139,6 @@ var _ = Describe("[external-dataplane-globalnet] Connectivity", func() {
 				verifyInteraction(framework.GatewayNode, ClusterIP)
 			})
 		})
-
 	})
 
 	When("In a non-external-app-connected cluster", func() {
@@ -334,7 +333,12 @@ func testGlobalNetExternalConnectivity(p testParams, g globalnetTestParams) {
 		By("Verifying that external app received the request from any IP")
 		Expect(dockerLog).To(MatchRegexp(".*GET /%s%s .*", p.Framework.Namespace, clusterName))
 	} else {
+		//nolint:exhaustive // `GlobalServiceIP` and `GlobalIP` are the same value, so linter returns false positive
 		switch p.ToEndpointType {
+		default:
+			fallthrough
+		case tcp.PodIP, tcp.ServiceIP:
+			framework.Failf("Unsupported ToEndpointType %v was passed", p.ToEndpointType)
 		case tcp.GlobalServiceIP:
 			By(fmt.Sprintf("Verifying that external app received request from one of podGlobalIPs %v", podGlobalIPs))
 			matchRegexp := MatchRegexp("%s .*GET /%s%s .*", podGlobalIPs[0], p.Framework.Namespace, clusterName)
@@ -376,7 +380,12 @@ func newGlobalEgressIPObj(namespace string, selector *metav1.LabelSelector) (*un
 }
 
 func createSvc(p testParams, np *framework.NetworkPod) *v1.Service {
+	//nolint:exhaustive // `GlobalServiceIP` and `GlobalIP` are the same value, so linter returns false positive
 	switch p.ToEndpointType {
+	default:
+		fallthrough
+	case tcp.PodIP, tcp.ServiceIP:
+		framework.Failf("Unsupported ToEndpointType %v was passed", p.ToEndpointType)
 	case tcp.GlobalServiceIP:
 		return np.CreateService()
 	case tcp.GlobalPodIP:
@@ -388,7 +397,12 @@ func createSvc(p testParams, np *framework.NetworkPod) *v1.Service {
 }
 
 func getGlobalIngressIP(p testParams, service *v1.Service) string {
+	//nolint:exhaustive // `GlobalServiceIP` and `GlobalIP` are the same value, so linter returns false positive
 	switch p.ToEndpointType {
+	default:
+		fallthrough
+	case tcp.PodIP, tcp.ServiceIP:
+		framework.Failf("Unsupported ToEndpointType %v was passed", p.ToEndpointType)
 	case tcp.GlobalServiceIP:
 		return p.Framework.AwaitGlobalIngressIP(p.Cluster, service.Name, service.Namespace)
 	case tcp.GlobalPodIP:

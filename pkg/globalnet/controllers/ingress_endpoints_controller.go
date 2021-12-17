@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/pkg/errors"
 	"github.com/submariner-io/admiral/pkg/federate"
 	"github.com/submariner-io/admiral/pkg/stringset"
 	"github.com/submariner-io/admiral/pkg/syncer"
@@ -41,7 +42,7 @@ func startIngressEndpointsController(svc *corev1.Service, config *syncer.Resourc
 
 	_, gvr, err := util.ToUnstructuredResource(&submarinerv1.GlobalIngressIP{}, config.RestMapper)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "error converting resource")
 	}
 
 	controller := &ingressEndpointsController{
@@ -67,11 +68,11 @@ func startIngressEndpointsController(svc *corev1.Service, config *syncer.Resourc
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "error creating the syncer")
 	}
 
 	if err := controller.Start(); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "error creating the syncer")
 	}
 
 	ingressIPs := config.SourceClient.Resource(*gvr).Namespace(corev1.NamespaceAll)
