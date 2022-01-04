@@ -84,6 +84,16 @@ var (
 			connectionsStatusLabel,
 		},
 	)
+	privateConnectionsGauge = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "submariner_connections_private",
+			Help: "Number of connections and corresponding status (by cable driver and status)",
+		},
+		[]string{
+			cableDriverLabel,
+			connectionsStatusLabel,
+		},
+	)
 	connectionEstablishedTimestampGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "submariner_connection_established_timestamp",
@@ -117,7 +127,8 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(rxGauge, txGauge, connectionsGauge, connectionEstablishedTimestampGauge, connectionLatencySecondsGauge)
+	prometheus.MustRegister(rxGauge, txGauge, connectionsGauge, privateConnectionsGauge, connectionEstablishedTimestampGauge,
+		connectionLatencySecondsGauge)
 }
 
 func getLabels(cableDriverName string, localEndpoint, remoteEndpoint *submv1.EndpointSpec) prometheus.Labels {
@@ -129,6 +140,12 @@ func getLabels(cableDriverName string, localEndpoint, remoteEndpoint *submv1.End
 		remoteClusterLabel:    remoteEndpoint.ClusterID,
 		remoteHostnameLabel:   remoteEndpoint.Hostname,
 		remoteEndpointIPLabel: remoteEndpoint.PublicIP,
+	}
+}
+
+func getPrivateLabels(cableDriverName string) prometheus.Labels {
+	return prometheus.Labels{
+		cableDriverLabel: cableDriverName,
 	}
 }
 
@@ -153,20 +170,27 @@ func RecordConnection(cableDriverName string, localEndpoint, remoteEndpoint *sub
 
 	labels[connectionsStatusLabel] = status
 	connectionsGauge.With(labels).Set(1)
+
+	privateLabels := getPrivateLabels(cableDriverName)
+	privateLabels[connectionsStatusLabel] = status
+	privateConnectionsGauge.With(privateLabels).Set(1)
 }
 
 func RecordDisconnected(cableDriverName string, localEndpoint, remoteEndpoint *submv1.EndpointSpec) {
 	labels := getLabels(cableDriverName, localEndpoint, remoteEndpoint)
+	privateLabels := getPrivateLabels(cableDriverName)
 
 	connectionLatencySecondsGauge.Delete(labels)
 	connectionEstablishedTimestampGauge.Delete(labels)
 	rxGauge.Delete(labels)
 	txGauge.Delete(labels)
 	connectionsGauge.Delete(labels)
+	privateConnectionsGauge.Delete(privateLabels)
 }
 
 func RecordNoConnections() {
 	// TODO: assuming only 1 cable driver is active at a time, calling Reset() will work.
 	// once this is changed, there is a need to be updated accordingly
 	connectionsGauge.Reset()
+	privateConnectionsGauge.Reset()
 }
