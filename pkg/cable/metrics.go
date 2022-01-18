@@ -86,7 +86,7 @@ var (
 	)
 	privateConnectionsGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "submariner_connections_summary",
+			Name: "submariner_connections_short",
 			Help: "Summary of connections and corresponding status without cable information",
 		},
 		[]string{
