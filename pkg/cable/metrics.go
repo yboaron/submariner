@@ -86,8 +86,8 @@ var (
 	)
 	privateConnectionsGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "submariner_connections_private",
-			Help: "Number of connections and corresponding status (by cable driver and status)",
+			Name: "submariner_connections_summary",
+			Help: "Summary of connections and corresponding status without cable information",
 		},
 		[]string{
 			cableDriverLabel,
