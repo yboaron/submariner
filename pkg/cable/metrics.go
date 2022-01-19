@@ -84,7 +84,7 @@ var (
 			connectionsStatusLabel,
 		},
 	)
-	privateConnectionsGauge = prometheus.NewGaugeVec(
+	shortConnectionsGauge = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "submariner_connections_short",
 			Help: "Summary of connections and corresponding status without cable information",
@@ -127,7 +127,7 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(rxGauge, txGauge, connectionsGauge, privateConnectionsGauge, connectionEstablishedTimestampGauge,
+	prometheus.MustRegister(rxGauge, txGauge, connectionsGauge, shortConnectionsGauge, connectionEstablishedTimestampGauge,
 		connectionLatencySecondsGauge)
 }
 
@@ -173,7 +173,7 @@ func RecordConnection(cableDriverName string, localEndpoint, remoteEndpoint *sub
 
 	privateLabels := getPrivateLabels(cableDriverName)
 	privateLabels[connectionsStatusLabel] = status
-	privateConnectionsGauge.With(privateLabels).Set(1)
+	shortConnectionsGauge.With(privateLabels).Set(1)
 }
 
 func RecordDisconnected(cableDriverName string, localEndpoint, remoteEndpoint *submv1.EndpointSpec) {
@@ -185,12 +185,12 @@ func RecordDisconnected(cableDriverName string, localEndpoint, remoteEndpoint *s
 	rxGauge.Delete(labels)
 	txGauge.Delete(labels)
 	connectionsGauge.Delete(labels)
-	privateConnectionsGauge.Delete(privateLabels)
+	shortConnectionsGauge.Delete(privateLabels)
 }
 
 func RecordNoConnections() {
 	// TODO: assuming only 1 cable driver is active at a time, calling Reset() will work.
 	// once this is changed, there is a need to be updated accordingly
 	connectionsGauge.Reset()
-	privateConnectionsGauge.Reset()
+	shortConnectionsGauge.Reset()
 }
