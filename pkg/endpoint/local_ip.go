@@ -32,8 +32,22 @@ var (
 		k8snet.IPv4: "8.8.8.8",
 		k8snet.IPv6: "2001:4860:4860::8888",
 	}
+
+	// These addresses are used internally by infrastructure components like OVN-Kubernetes CNI
+	// and should not be used as local IP.
+	// See: https://github.com/ovn-kubernetes/ovn-kubernetes/blob/eea781bd80d4afb29e0d43c81ea5503fbe452d78/docs/design/host-to-node-port-hairpin-trafficflow.md?plain=1#L59
+	infraInternalIPs = map[string]struct{}{
+		"fd69::2":       {},
+		"169.254.169.2": {},
+	}
+
 	Dial = net.Dial
 )
+
+func isInfraInternalIP(ip string, family k8snet.IPFamily) bool {
+	_, found := infraInternalIPs[ip]
+	return found
+}
 
 func getLocalIPFromRoutes(family k8snet.IPFamily) (string, error) {
 	netlink := netlinkAPI.New()
@@ -44,8 +58,14 @@ func getLocalIPFromRoutes(family k8snet.IPFamily) (string, error) {
 	}
 
 	for i := range routes {
-		if routes[i].Gw != nil {
-			return routes[i].Src.String(), nil
+		if routes[i].Gw != nil && routes[i].Src != nil {
+			ipStr := routes[i].Src.String()
+
+			if isInfraInternalIP(ipStr, family) {
+				continue
+			}
+
+			return ipStr, nil
 		}
 	}
 
@@ -57,8 +77,12 @@ func GetLocalIPForDestination(dst string, family k8snet.IPFamily) string {
 	if err == nil {
 		defer conn.Close()
 		localAddr := conn.LocalAddr().(*net.UDPAddr)
+		localIP := localAddr.IP.String()
 
-		return localAddr.IP.String()
+		if !isInfraInternalIP(localIP, family) {
+			return localAddr.IP.String()
+		}
+
 	}
 
 	// connection failed try fallback method

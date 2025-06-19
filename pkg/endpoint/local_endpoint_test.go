@@ -67,7 +67,10 @@ var _ = Describe("GetLocalSpec", func() {
 		ipv6CIDR            = cniInterfaceIPv6 + "/64"
 		ipv4LocalIP         = "1.2.3.4"
 		ipv6LocalIP         = "2001:0:0:4321::"
-		globalnetCIDR       = "242.10.0.0/24"
+		ipv4InternalInfraIP = "169.254.169.2"
+		ipv6InternalInfraIP = "fd69::2"
+
+		globalnetCIDR = "242.10.0.0/24"
 	)
 
 	BeforeEach(func() {
@@ -110,8 +113,20 @@ var _ = Describe("GetLocalSpec", func() {
 
 		Expect(netLink.RouteAdd(&netlink.Route{
 			LinkIndex: 1,
+			Src:       net.ParseIP(ipv4InternalInfraIP),
+			Gw:        net.ParseIP("1.2.0.0"),
+		})).To(Succeed())
+
+		Expect(netLink.RouteAdd(&netlink.Route{
+			LinkIndex: 1,
 			Src:       net.ParseIP(ipv4LocalIP),
 			Gw:        net.ParseIP("1.2.0.0"),
+		})).To(Succeed())
+
+		Expect(netLink.RouteAdd(&netlink.Route{
+			LinkIndex: 2,
+			Src:       net.ParseIP(ipv6InternalInfraIP),
+			Gw:        net.ParseIP("2001:0:0:0::"),
 		})).To(Succeed())
 
 		Expect(netLink.RouteAdd(&netlink.Route{
